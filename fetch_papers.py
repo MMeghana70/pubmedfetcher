@@ -1,81 +1,55 @@
 import requests
-import pandas as pd
-import argparse
-
-# Base URL for PubMed API
-BASE_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
-DETAILS_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi"
+import csv
 
 def fetch_pubmed_papers(query):
-    """Fetch papers from PubMed based on a query."""
-    params = {
-        "db": "pubmed",
-        "term": query,
-        "retmode": "json",
-        "retmax": 10  # Adjust the number of papers to fetch
-    }
+    print(f"Fetching papers for: {query}")  # Debugging
+
+    url = f"https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term={query}&retmode=json"
+    print(f"PubMed API URL: {url}")  # Debugging
+
+    response = requests.get(url)
     
-    response = requests.get(BASE_URL, params=params)
-    response.raise_for_status()
+    if response.status_code != 200:
+        print("Error: Failed to fetch data from PubMed")
+        return
+
     data = response.json()
-    
-    paper_ids = data.get("esearchresult", {}).get("idlist", [])
-    return paper_ids
+    print("Response JSON:", data)  # Debugging
 
-def fetch_paper_details(paper_ids):
-    """Fetch detailed information for given PubMed IDs."""
-    if not paper_ids:
-        return []
-    
-    params = {
-        "db": "pubmed",
-        "id": ",".join(paper_ids),
-        "retmode": "json"
-    }
-    
-    response = requests.get(DETAILS_URL, params=params)
-    response.raise_for_status()
-    data = response.json()
-    
-    papers = []
-    for pid in paper_ids:
-        paper = data.get("result", {}).get(pid, {})
-        papers.append({
-            "PubmedID": pid,
-            "Title": paper.get("title", "N/A"),
-            "Publication Date": paper.get("pubdate", "N/A"),
-            "Authors": ", ".join([a.get("name", "N/A") for a in paper.get("authors", [])]),
-            "Company Affiliation": paper.get("source", "N/A"),
-            "Corresponding Author Email": "N/A"
-        })
-    
-    return papers
-
-def save_to_csv(papers, filename):
-    """Save results to a CSV file."""
-    df = pd.DataFrame(papers)
-    df.to_csv(filename, index=False)
-    print(f"Results saved to {filename}")
-
-def main():
-    parser = argparse.ArgumentParser(description="Fetch PubMed papers and save as CSV.")
-    parser.add_argument("query", help="Search query for PubMed.")
-    parser.add_argument("-f", "--file", help="File to save results (default: print to console).")
-    parser.add_argument("-d", "--debug", action="store_true", help="Enable debug mode.")
-
-    args = parser.parse_args()
-
-    if args.debug:
-        print(f"Fetching papers for query: {args.query}")
-
-    paper_ids = fetch_pubmed_papers(args.query)
-    papers = fetch_paper_details(paper_ids)
-
-    if args.file:
-        save_to_csv(papers, args.file)
+    if "esearchresult" in data and "idlist" in data["esearchresult"]:
+        paper_ids = data["esearchresult"]["idlist"]
+        print(f"Found {len(paper_ids)} papers.")  # Debugging
     else:
-        print(pd.DataFrame(papers))
+        print("No papers found.")
+        return
 
-if __name__ == "_main_":
-    main()
+    # Fetch details for these papers
+    details_url = f"https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id={','.join(paper_ids)}&retmode=json"
+    print(f"Fetching details from: {details_url}")  # Debugging
 
+    details_response = requests.get(details_url)
+    details_data = details_response.json()
+    print("Details JSON:", details_data)  # Debugging
+
+    # Save to CSV
+    with open("papers.csv", "w", newline="") as csvfile:
+        csv_writer = csv.writer(csvfile)
+        csv_writer.writerow(["Title", "Authors", "Journal", "Year", "DOI"])
+        
+        for paper_id in paper_ids:
+            paper_info = details_data["result"].get(paper_id, {})
+            title = paper_info.get("title", "No title available")
+            authors = "; ".join([author["name"] for author in paper_info.get("authors", [])])
+            journal = paper_info.get("source", "Unknown Journal")
+            year = paper_info.get("pubdate", "Unknown Year")
+            doi = paper_info.get("elocationid", "No DOI available")
+            
+            csv_writer.writerow([title, authors, journal, year, doi])
+    
+    print("✅ Papers saved to `papers.csv`")
+
+# Run the script
+if __name__ == "__main__":
+    import sys
+    query = " ".join(sys.argv[2:]) if len(sys.argv) > 2 else "COVID-19"
+    fetch_pubmed_papers(query)
