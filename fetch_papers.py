@@ -23,6 +23,7 @@ def fetch_pubmed_papers(query):
         print("No papers found.")
         return
 
+<<<<<<< HEAD
     # Fetch details for these papers
     details_url = f"https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id={','.join(paper_ids)}&retmode=json"
     print(f"Fetching details from: {details_url}")  # Debugging
@@ -53,3 +54,7 @@ if __name__ == "__main__":
     import sys
     query = " ".join(sys.argv[2:]) if len(sys.argv) > 2 else "COVID-19"
     fetch_pubmed_papers(query)
+=======
+if __name__ == "_main_":
+    main()
+>>>>>>> 6cecb6cc1681e3a10292a420c9d46f40ce412950
